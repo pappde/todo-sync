@@ -50,7 +50,16 @@ namespace Todo.Core.Repository
                 // TECH: access each serialized task individually, so we don't lose anything going Deserialize => Serialize
                 // OPTIMIZE: we could change these to be Deserialized on demand
                 var jsonObject = JsonSerializer.Deserialize<JsonObject>(response);
-                var jsonTasksArray = jsonObject["value"].AsArray();
+
+                // BUGFIX_REQUESTFAILED: drp090426 - a failed request used to arrive here as an error body, and the
+                //  missing "value" node then threw a bare NullReferenceException that hid the actual cause.
+                //  GraphClient now throws instead, so this only guards a genuinely unexpected response shape.
+                var jsonValue = jsonObject?["value"];
+                if (jsonValue == null)
+                    throw new InvalidOperationException(
+                        $"Unexpected response listing tasks for list '{list.displayName}' [{uri}]: {response}");
+
+                var jsonTasksArray = jsonValue.AsArray();
                 foreach (var jsonTask in jsonTasksArray)
                 {
                     var todoItem = JsonSerializer.Deserialize<TodoItem>(jsonTask);
